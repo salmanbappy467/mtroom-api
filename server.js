@@ -7,6 +7,10 @@ const { getInventoryList } = require('./fetch_inventory');
 const app = express();
 app.use(express.json());
 
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // 1. Login Check Endpoint
 app.post('/api/login-check', async (req, res) => {
     try {
@@ -46,5 +50,6 @@ app.post('/api/all-meter-list', async (req, res) => {
         res.json({ status: "success", count: data.length, data: data });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 
 app.listen(3000, () => console.log("mtroom API v1.0 Running on Port 3000"));
