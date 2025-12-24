@@ -1,8 +1,12 @@
 const express = require('express');
+const path = require('path');
 const { verifyLoginDetails } = require('./login_check');
-const { processBatch } = require('./batch_processor');
+const { processBatch } = require('./batch_processor'); 
 const { verifyMeter } = require('./meter_check');
 const { getInventoryList } = require('./fetch_inventory');
+
+// Import the new concurrent processor
+const { processConcurrentBatch } = require('./concurrent_processor');
 
 const app = express();
 app.use(express.json());
@@ -23,7 +27,7 @@ app.post('/api/login-check', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 2. Bulk Meter Post Endpoint
+// 2. Normal Bulk Meter Post (With Verification)
 app.post('/api/meter-post', async (req, res) => {
     try {
         const result = await processBatch(req.body.userid, req.body.password, req.body.meters);
@@ -51,5 +55,13 @@ app.post('/api/all-meter-list', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 5. Ultra Fast Endpoint (New) - No Verification, Parallel Upload
 
-app.listen(3000, () => console.log("mtroom API v1.0 Running on Port 3000"));
+app.post('/api/fast-post', async (req, res) => {
+    try {
+        const result = await processConcurrentBatch(req.body.userid, req.body.password, req.body.meters);
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.listen(3000, () => console.log("mtroom API v2.0 (Ultra Fast) Running on Port 3000"));
