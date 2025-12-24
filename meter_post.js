@@ -7,7 +7,7 @@ const DEFAULTS = {
     volt: '240', mult: '1', zero: '0', sealTxt: 'LS'
 };
 
-async function postMeterData(cookies, m) {
+async function postMeterData(cookies, m, options = {}) {
     const url = 'http://www.rebpbs.com/UI/Setup/meterinfo_setup.aspx';
     const session = axios.create({
         headers: { 
@@ -15,44 +15,40 @@ async function postMeterData(cookies, m) {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Cookie': cookies.join('; '),
             'Referer': url
-        }
+        },
+        timeout: 30000 // 30s timeout
     });
 
     try {
-        // Step 1: Initial Context
-        const page = await session.get(url);
-        const $ = cheerio.load(page.data);
-        const pbs = $('#ctl00_ContentPlaceHolder1_txtPBSName').val();
-        if (!pbs) return { success: false, sessionExpired: true, reason: "Session Expired" };
+        let newVS, newEV, pbs, zonal, gen;
 
-        const zonal = $('#ctl00_ContentPlaceHolder1_txtZonalName').val();
+        // 🔥 FAST MODE: If tokens are provided, SKIP Step 1 & 2
+        if (options.viewState) {
+            newVS = options.viewState;
+            newEV = options.eventValidation;
+            gen = options.viewStateGen;
+            pbs = options.pbs;
+            zonal = options.zonal;
+        } else {
+            // SLOW MODE: Fetch page explicitly (Step 1)
+            const page = await session.get(url);
+            const $ = cheerio.load(page.data);
+            pbs = $('#ctl00_ContentPlaceHolder1_txtPBSName').val();
+            zonal = $('#ctl00_ContentPlaceHolder1_txtZonalName').val();
+            newVS = $('#__VIEWSTATE').val();
+            newEV = $('#__EVENTVALIDATION').val();
+            gen = $('#__VIEWSTATEGENERATOR').val();
+            
+            // Note: We are skipping Step 2 (AJAX Validation) entirely to save time
+            // The server will validate on save anyway.
+        }
 
-        // Step 2: Trigger Validation (AJAX)
-        const triggerPayload = qs.stringify({
-            'ctl00$ScriptManager1': 'ctl00$ContentPlaceHolder1$UpdatePanel3|ctl00$ContentPlaceHolder1$txtMETER_NO',
-            '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$txtMETER_NO',
-            '__VIEWSTATE': $('#__VIEWSTATE').val(),
-            '__VIEWSTATEGENERATOR': $('#__VIEWSTATEGENERATOR').val(),
-            '__EVENTVALIDATION': $('#__EVENTVALIDATION').val(),
-            '__VIEWSTATEENCRYPTED': '',
-            'ctl00$ContentPlaceHolder1$txtMETER_NO': String(m.meterNo),
-            '__ASYNCPOST': 'true'
-        });
+        if (!pbs) return { success: false, sessionExpired: true, reason: "Session Expired / Page Load Failed" };
 
-        const triggerRes = await session.post(url, triggerPayload, {
-            headers: { 'X-MicrosoftAjax': 'Delta=true', 'X-Requested-With': 'XMLHttpRequest' }
-        });
-
-        const parts = triggerRes.data.split('|');
-        const getToken = (id) => parts.indexOf(id) !== -1 ? parts[parts.indexOf(id) + 1] : null;
-        
-        const newVS = getToken('__VIEWSTATE') || $('#__VIEWSTATE').val();
-        const newEV = getToken('__EVENTVALIDATION') || $('#__EVENTVALIDATION').val();
-
-        // Step 3: Final Submission (Standard Post)
+        // Step 3: Final Submission (Direct)
         const savePayload = qs.stringify({
             '__EVENTTARGET': '', '__EVENTARGUMENT': '', '__VIEWSTATEENCRYPTED': '',
-            '__VIEWSTATE': newVS, '__VIEWSTATEGENERATOR': $('#__VIEWSTATEGENERATOR').val(), '__EVENTVALIDATION': newEV,
+            '__VIEWSTATE': newVS, '__VIEWSTATEGENERATOR': gen, '__EVENTVALIDATION': newEV,
             'ctl00$ContentPlaceHolder1$txtPBSName': pbs,
             'ctl00$ContentPlaceHolder1$txtZonalName': zonal,
             'ctl00$ContentPlaceHolder1$ddlMeterPaymentMode': String(m.paymentMode || DEFAULTS.payMode),
