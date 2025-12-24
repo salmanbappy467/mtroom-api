@@ -63,5 +63,6 @@ app.post('/api/fast-post', async (req, res) => {
         res.json(result);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+const PORT = process.env.PORT || 3000;
 
-app.listen(3000, () => console.log("mtroom API v2.0 (Ultra Fast) Running on Port 3000"));
+app.listen(PORT, () => console.log("mtroom API v2.0 (Ultra Fast) Running on Port 3000"));
