@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REB Smart Automation v3.1</title>
+    <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/2449px-NASA_logo.svg.png" type="image/png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#131314',
+                        surface: '#1E1F20',
+                        surface2: '#2D2E30',
+                        primary: '#8AB4F8',
+                        text: '#E3E3E3',
+                        textDim: '#9AA0A6',
+                        border: '#3C4043',
+                        success: '#81C995',
+                        danger: '#F28B82'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #131314; color: #E3E3E3; font-family: 'Segoe UI', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1E1F20; }
+        ::-webkit-scrollbar-thumb { background: #3C4043; border-radius: 4px; }
+        
+        .loader {
+            border: 2px solid #3C4043; border-top: 2px solid #8AB4F8; border-radius: 50%;
+            width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .sheet-input {
+            background: transparent; border: none; color: #E3E3E3; width: 100%; outline: none; text-align: center;
+        }
+        .sheet-input:focus { background: #2D2E30; }
+        
+        .grid-table {
+            display: grid;
+            grid-template-columns: 40px 1fr 1fr 1fr 100px 30px; 
+            gap: 1px; background: #3C4043; min-width: 900px;
+        }
+        .grid-cell { background: #1E1F20; padding: 6px; display: flex; align-items: center; justify-content: center; }
+        .grid-header { background: #2D2E30; font-weight: bold; color: #8AB4F8; font-size: 0.85rem; }
+        .col-hidden { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <div id="loginPage" class="fixed inset-0 z-50 flex items-center justify-center bg-bg">
+        <div class="bg-surface p-8 rounded-xl shadow-2xl w-96 border border-border">
+            <div class="flex justify-center mb-6"><i class="fa-solid fa-server text-5xl text-primary animate-pulse"></i></div>
+            <h2 class="text-2xl font-bold text-center mb-2">Login System</h2>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-xs text-textDim mb-1">USER ID</label>
+                    <input type="text" id="userIdInput" class="w-full bg-surface2 border border-border rounded p-2 text-white outline-none focus:border-primary" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-xs text-textDim mb-1">PASSWORD</label>
+                    <input type="password" id="passwordInput" class="w-full bg-surface2 border border-border rounded p-2 text-white outline-none focus:border-primary" required>
+                </div>
+                <button type="submit" id="loginBtn" class="w-full bg-primary text-black font-bold py-2 rounded hover:bg-blue-400 transition">Login</button>
+            </form>
+            <div id="loginMsg" class="text-red-400 text-xs text-center mt-3 h-5"></div>
+        </div>
+    </div>
+
+    <div id="appLayout" class="hidden flex-col h-full">
+        <header class="bg-surface border-b border-border h-16 flex items-center justify-between px-4 shrink-0">
+            <div class="flex items-center gap-4">
+                <i class="fa-solid fa-bolt text-primary text-xl"></i>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">REB Auto <span class="text-xs text-primary bg-surface2 px-1 rounded">v3.1</span></h1>
+                    <div id="displayOffice" class="text-xs text-textDim">...</div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden md:block">
+                    <div id="displayUserName" class="text-sm font-bold text-white text-green-400">Guest</div>
+                    <div id="displayUserDetail" class="text-[11px] text-textDim max-w-[250px] truncate">PBS Info</div>
+                </div>
+                <button onclick="logout()" class="text-red-400 hover:bg-surface2 p-2 rounded" title="Logout"><i class="fa-solid fa-power-off"></i></button>
+            </div>
+        </header>
+
+        <main id="view-dashboard" class="flex-1 flex flex-col overflow-hidden relative">
+            <div class="h-12 border-b border-border flex items-center px-2 gap-2 shrink-0 bg-surface">
+                <button onclick="toggleSettingsModal()" class="bg-surface2 hover:bg-border text-white px-3 py-1.5 rounded text-sm border border-border"><i class="fa-solid fa-sliders"></i> Settings</button>
+                <div class="h-6 w-[1px] bg-border mx-1"></div>
+                <button onclick="addEmptyRow()" class="bg-surface2 hover:bg-border text-white px-3 py-1.5 rounded text-sm border border-border"><i class="fa-solid fa-plus"></i> Add Row</button>
+                
+                <button onclick="clearSuccessRows()" class="bg-surface2 hover:bg-red-900 text-white px-3 py-1.5 rounded text-sm border border-border ml-2" title="Clear only successful entries">
+                    <i class="fa-solid fa-broom text-yellow-500"></i> Clear Success
+                </button>
+
+                <button onclick="startPosting()" class="bg-green-700 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-2 shadow-lg ml-auto"><i class="fa-solid fa-paper-plane"></i> Start Posting</button>
+            </div>
+
+            <div class="flex-1 overflow-auto bg-bg p-2">
+                <div id="meterTable" class="grid-table rounded overflow-hidden">
+                    <div class="grid-cell grid-header">#</div>
+                    <div class="grid-cell grid-header">Meter No</div>
+                    <div class="grid-cell grid-header">Seal No</div>
+                    <div class="grid-cell grid-header">Brand</div>
+                    
+                    <div class="grid-cell grid-header opt-col opt-init col-hidden">Init</div>
+                    <div class="grid-cell grid-header opt-col opt-kwh col-hidden">KWH</div>
+                    <div class="grid-cell grid-header opt-col opt-demand col-hidden">Dem</div>
+                    <div class="grid-cell grid-header opt-col opt-type col-hidden">Type</div>
+                    <div class="grid-cell grid-header opt-col opt-bs1 col-hidden">BS1</div>
+                    <div class="grid-cell grid-header opt-col opt-bs2 col-hidden">BS2</div>
+
+                    <div class="grid-cell grid-header">Status</div>
+                    <div class="grid-cell grid-header"><i class="fa-solid fa-trash"></i></div>
+                </div>
+                <div class="h-20"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div class="bg-surface p-6 rounded-xl w-[400px] border border-border shadow-2xl">
+            <h3 class="font-bold mb-4 text-primary">Visible Columns</h3>
+            <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+                <label class="flex items-center gap-2"><input type="checkbox" id="tog-init" onchange="updateColumns(); saveDraft()"> Initial Reading</label>
+                <label class="flex items-center gap-2"><input type="checkbox" id="tog-kwh" onchange="updateColumns(); saveDraft()"> KWH Reading</label>
+                <label class="flex items-center gap-2"><input type="checkbox" id="tog-demand" onchange="updateColumns(); saveDraft()"> Demand Reading</label>
+                <label class="flex items-center gap-2"><input type="checkbox" id="tog-type" onchange="updateColumns(); saveDraft()"> Meter Type</label>
+                <label class="flex items-center gap-2"><input type="checkbox" id="tog-bs1" onchange="updateColumns(); saveDraft()"> Body Seal 1</label>
+                <label class="flex items-center gap-2"><input type="checkbox" id="tog-bs2" onchange="updateColumns(); saveDraft()"> Body Seal 2</label>
+            </div>
+            <button onclick="document.getElementById('settingsModal').classList.add('hidden')" class="w-full bg-surface2 text-white py-2 rounded hover:bg-border">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000'; 
+
+        const manufacturers = [
+            {id:'581', name:'Badhon (Default)'}, 
+            {id:'41', name:'Hexing'}, 
+            {id:'141', name:'B and T'},
+            {id:'1702', name:'B and T (New)'},
+            {id:'161', name:'TECHNO'},
+            {id:'201', name:'D Tech'},
+            {id:'39', name:'Super Star'}, 
+            {id:'541', name:'Smart'}, 
+            {id:'61', name:'Power Plus'},
+            {id:'64', name:'Echo'},
+            {id:'81', name:'Holley'},
+            {id:'301', name:'HOSAF'},
+            {id:'321', name:'PASHA'},
+            {id:'241', name:'Cell Meter'},
+            {id:'261', name:'Hexcell'},
+            {id:'281', name:'Kaifa'},
+            {id:'341', name:'Wasion'},
+            {id:'402', name:'FUJI'},
+            {id:'421', name:'Libra'},
+            {id:'601', name:'JFJ'}
+        ];
+
+        const state = {
+            user: JSON.parse(localStorage.getItem('reb_user_v3')) || null,
+            defaults: { 
+                manufacturerId: '581', 
+                meterType: 'j-39', 
+                bodySeal1: 'LS', 
+                bodySeal2: 'LS', 
+                initialReading: '0', 
+                kwhReading: '0', 
+                demandReading: '0' 
+            }
+        };
+
+        // --- LOGIN & INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if(state.user) {
+                initApp();
+            } else {
+                document.getElementById('loginPage').classList.remove('hidden');
+            }
+            loadSettings();
+        });
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const msg = document.getElementById('loginMsg');
+            const uid = document.getElementById('userIdInput').value;
+            const pass = document.getElementById('passwordInput').value;
+
+            btn.innerText = "Checking...";
+            msg.innerText = "";
+
+            try {
+                const res = await fetch(`${API_BASE}/api/login-check`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userid: uid, password: pass })
+                });
+                
+                const data = await res.json();
+
+                if(data.status === 'success' || data.pbs) {
+                    
+                    // User info formatting logic
+                    let userDisplay = data.user;
+                    if (data.user && data.user.includes(',')) {
+                        const parts = data.user.split(',');
+                        if(parts.length >= 2) {
+                            userDisplay = parts.slice(0, 2).join(',');
+                        } else {
+                            userDisplay = parts[0];
+                        }
+                    }
+
+                    state.user = { 
+                        userid: uid, 
+                        password: pass, 
+                        pbs: data.pbs, 
+                        zonal: data.zonal,
+                        displayName: userDisplay
+                    };
+                    
+                    localStorage.setItem('reb_user_v3', JSON.stringify(state.user));
+                    initApp();
+                } else {
+                    msg.innerText = "Login Failed! Check credentials.";
+                }
+            } catch (err) {
+                console.error(err);
+                msg.innerText = "Server Error. Is 'node server' running?";
+            }
+            btn.innerText = "Login";
+        }
+
+        function initApp() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('appLayout').classList.remove('hidden');
+            document.getElementById('appLayout').classList.add('flex');
+            
+            // SHOW PBS INSTEAD OF USER DETAIL
+            document.getElementById('displayUserName').innerText = state.user.displayName;
+            document.getElementById('displayUserDetail').innerText = state.user.pbs; // এই লাইনটি আপডেট করা হয়েছে
+            
+            document.getElementById('displayOffice').innerText = state.user.zonal || state.user.pbs;
+
+            restoreDraft();
+        }
+
+        function logout() {
+            localStorage.removeItem('reb_user_v3');
+            localStorage.removeItem('reb_draft_rows'); 
+            location.reload();
+        }
+
+        // --- DATA PERSISTENCE (CACHE) ---
+        function saveDraft() {
+            const rows = [];
+            document.querySelectorAll('.meter-row').forEach(row => {
+                rows.push({
+                    meterNo: row.querySelector('.inp-meter').value,
+                    sealNo: row.querySelector('.inp-seal').value,
+                    manufacturerId: row.querySelector('.inp-brand').value,
+                    initialReading: row.querySelector('.inp-init').value,
+                    kwhReading: row.querySelector('.inp-kwh').value,
+                    demandReading: row.querySelector('.inp-demand').value,
+                    meterType: row.querySelector('.inp-type').value,
+                    bodySeal1: row.querySelector('.inp-bs1').value,
+                    bodySeal2: row.querySelector('.inp-bs2').value,
+                    statusHtml: row.querySelector('.status-cell').innerHTML, 
+                    isSuccess: row.querySelector('.status-cell').classList.contains('text-green-500')
+                });
+            });
+            localStorage.setItem('reb_draft_rows', JSON.stringify(rows));
+            
+            const settings = {};
+            ['init','kwh','demand','type','bs1','bs2'].forEach(id => {
+                settings[id] = document.getElementById(`tog-${id}`).checked;
+            });
+            localStorage.setItem('reb_settings', JSON.stringify(settings));
+        }
+
+        function restoreDraft() {
+            const savedRows = JSON.parse(localStorage.getItem('reb_draft_rows'));
+            if(savedRows && savedRows.length > 0) {
+                const container = document.getElementById('meterTable');
+                container.innerHTML = container.innerHTML.split('<div class="meter-row"')[0]; 
+                document.querySelectorAll('.meter-row').forEach(e => e.remove());
+
+                savedRows.forEach((data, index) => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.className = 'meter-row';
+                    tempDiv.style.display = 'contents';
+                    tempDiv.innerHTML = createRowHtml(index + 1, data);
+                    container.appendChild(tempDiv);
+                });
+                updateColumns();
+            } else {
+                renderRows(1); 
+            }
+        }
+
+        function loadSettings() {
+            const settings = JSON.parse(localStorage.getItem('reb_settings'));
+            if(settings) {
+                for(const key in settings) {
+                    const el = document.getElementById(`tog-${key}`);
+                    if(el) el.checked = settings[key];
+                }
+                updateColumns();
+            }
+        }
+
+        // --- GRID LOGIC ---
+        function getNextSealSequence() {
+            const sealInputs = document.querySelectorAll('.inp-seal');
+            if(sealInputs.length === 0) return '';
+            const lastVal = sealInputs[sealInputs.length - 1].value.trim();
+            if(!lastVal) return '';
+
+            const match = lastVal.match(/(\d+)$/);
+            if(match) {
+                const numberPart = match[1];
+                const nextNum = (parseInt(numberPart, 10) + 1).toString();
+                const paddedNum = nextNum.padStart(numberPart.length, '0');
+                return lastVal.substring(0, match.index) + paddedNum;
+            }
+            return lastVal;
+        }
+
+        function updateGlobalDefault(key, value) {
+            state.defaults[key] = value;
+            saveDraft();
+        }
+
+        function createRowHtml(index, data = null) {
+            const def = state.defaults;
+            
+            const val = {
+                meter: data ? data.meterNo : '',
+                seal: data ? data.sealNo : getNextSealSequence(),
+                brand: data ? data.manufacturerId : def.manufacturerId,
+                init: data ? data.initialReading : def.initialReading,
+                kwh: data ? data.kwhReading : def.kwhReading,
+                demand: data ? data.demandReading : def.demandReading,
+                type: data ? data.meterType : def.meterType,
+                bs1: data ? data.bodySeal1 : def.bodySeal1,
+                bs2: data ? data.bodySeal2 : def.bodySeal2,
+                status: data ? data.statusHtml : 'Pending',
+                statusClass: (data && data.isSuccess) ? "text-green-500" : "text-textDim"
+            };
+
+            return `
+                <div class="grid-cell text-textDim text-xs row-index">${index}</div>
+                <div class="grid-cell"><input type="text" class="sheet-input inp-meter" value="${val.meter}" placeholder="Meter No" oninput="saveDraft()" onkeydown="handleKey(event)"></div>
+                <div class="grid-cell"><input type="text" class="sheet-input inp-seal" value="${val.seal}" oninput="saveDraft()" onkeydown="handleKey(event)"></div>
+                <div class="grid-cell">
+                    <select class="sheet-input inp-brand cursor-pointer" onchange="updateGlobalDefault('manufacturerId', this.value)">
+                        ${getBrandOptions(val.brand)}
+                    </select>
+                </div>
+                
+                <div class="grid-cell opt-col opt-init col-hidden"><input type="text" class="sheet-input inp-init" value="${val.init}" oninput="saveDraft()"></div>
+                <div class="grid-cell opt-col opt-kwh col-hidden"><input type="text" class="sheet-input inp-kwh" value="${val.kwh}" oninput="saveDraft()"></div>
+                <div class="grid-cell opt-col opt-demand col-hidden"><input type="text" class="sheet-input inp-demand" value="${val.demand}" oninput="saveDraft()"></div>
+                <div class="grid-cell opt-col opt-type col-hidden"><input type="text" class="sheet-input inp-type" value="${val.type}" onchange="updateGlobalDefault('meterType', this.value)"></div>
+                <div class="grid-cell opt-col opt-bs1 col-hidden"><input type="text" class="sheet-input inp-bs1" value="${val.bs1}" onchange="updateGlobalDefault('bodySeal1', this.value)"></div>
+                <div class="grid-cell opt-col opt-bs2 col-hidden"><input type="text" class="sheet-input inp-bs2" value="${val.bs2}" onchange="updateGlobalDefault('bodySeal2', this.value)"></div>
+
+                <div class="grid-cell status-cell text-xs font-bold ${val.statusClass}">${val.status}</div>
+                <div class="grid-cell cursor-pointer text-red-400 hover:text-red-200" onclick="deleteRow(this)"><i class="fa-solid fa-trash"></i></div>
+            `;
+        }
+
+        function getBrandOptions(selectedId) {
+            return manufacturers.map(m => `<option value="${m.id}" ${m.id == selectedId ? 'selected' : ''}>${m.name}</option>`).join('');
+        }
+
+        function renderRows(count) {
+            const container = document.getElementById('meterTable');
+            for(let i=0; i<count; i++) {
+                const tempDiv = document.createElement('div');
+                tempDiv.className = 'meter-row';
+                tempDiv.style.display = 'contents';
+                const currentIndex = container.querySelectorAll('.meter-row').length + 1;
+                tempDiv.innerHTML = createRowHtml(currentIndex);
+                container.appendChild(tempDiv);
+            }
+            updateColumns();
+            saveDraft();
+        }
+
+        function addEmptyRow() { renderRows(1); }
+
+        function deleteRow(btn) {
+            btn.closest('.meter-row').remove();
+            reIndexRows();
+            saveDraft();
+        }
+
+        function clearSuccessRows() {
+            const rows = document.querySelectorAll('.meter-row');
+            let removed = 0;
+            rows.forEach(row => {
+                if(row.querySelector('.status-cell').classList.contains('text-green-500')) {
+                    row.remove();
+                    removed++;
+                }
+            });
+            if(removed > 0) {
+                reIndexRows();
+                saveDraft();
+            } else {
+                alert("No successful entries to clear.");
+            }
+        }
+
+        function reIndexRows() {
+            document.querySelectorAll('.meter-row .row-index').forEach((el, idx) => el.innerText = idx + 1);
+        }
+
+        function handleKey(e) {
+            if(e.key === 'Enter') {
+                e.preventDefault();
+                const row = e.target.closest('.meter-row');
+                const nextRow = row.nextElementSibling;
+                if(!nextRow || !nextRow.classList.contains('meter-row')) {
+                    addEmptyRow();
+                    setTimeout(() => {
+                        const newRow = row.nextElementSibling;
+                        if(newRow) newRow.querySelector('.inp-meter').focus();
+                    }, 0);
+                } else {
+                    nextRow.querySelector('.inp-meter').focus();
+                }
+            }
+        }
+
+        function toggleSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        
+        function updateColumns() {
+            const ids = ['init','kwh','demand','type','bs1','bs2'];
+            let visibleCount = 0;
+            ids.forEach(id => {
+                const isChecked = document.getElementById(`tog-${id}`).checked;
+                if(isChecked) visibleCount++;
+                document.querySelectorAll(`.opt-${id}`).forEach(el => el.classList.toggle('col-hidden', !isChecked));
+            });
+            const template = `40px 1fr 1fr 1fr ${'1fr '.repeat(visibleCount)} 100px 30px`;
+            document.getElementById('meterTable').style.gridTemplateColumns = template;
+        }
+
+        async function startPosting() {
+            const rows = document.querySelectorAll('.meter-row');
+            const payload = [];
+            const activeRowElements = [];
+
+            rows.forEach(row => {
+                const meter = row.querySelector('.inp-meter').value.trim();
+                const seal = row.querySelector('.inp-seal').value.trim();
+                const statusCell = row.querySelector('.status-cell');
+
+                if(meter && seal && !statusCell.classList.contains('text-green-500')) {
+                    statusCell.innerHTML = '<span class="loader"></span>';
+                    statusCell.classList.remove('text-textDim'); 
+                    activeRowElements.push(row);
+                    
+                    payload.push({
+                        meterNo: meter,
+                        sealNo: seal,
+                        manufacturerId: row.querySelector('.inp-brand').value,
+                        initialReading: row.querySelector('.inp-init').value,
+                        kwhReading: row.querySelector('.inp-kwh').value,
+                        demandReading: row.querySelector('.inp-demand').value,
+                        meterType: row.querySelector('.inp-type').value,
+                        bodySeal1: row.querySelector('.inp-bs1').value,
+                        bodySeal2: row.querySelector('.inp-bs2').value
+                    });
+                }
+            });
+
+            if(payload.length === 0) return alert("Nothing new to post!");
+            saveDraft(); 
+
+            try {
+                const res = await fetch(`${API_BASE}/api/fast-post`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userid: state.user.userid,
+                        password: state.user.password,
+                        meters: payload
+                    })
+                });
+                
+                const data = await res.json();
+                
+                activeRowElements.forEach((row) => {
+                    const st = row.querySelector('.status-cell');
+                    st.innerHTML = '<i class="fa-solid fa-check"></i> Done';
+                    st.className = "grid-cell status-cell text-xs font-bold text-green-500";
+                });
+                
+                saveDraft(); 
+
+            } catch (err) {
+                console.error(err);
+                activeRowElements.forEach(r => {
+                    const st = r.querySelector('.status-cell');
+                    st.innerText = "Error";
+                    st.className = "grid-cell status-cell text-xs font-bold text-red-500";
+                });
+                alert("Connection Failed!");
+                saveDraft();
+            }
+        }
+    </script>
+</body>
+</html>

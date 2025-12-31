@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const { verifyLoginDetails } = require('./login_check');
 const { processBatch } = require('./batch_processor'); 
@@ -9,6 +10,7 @@ const { getInventoryList } = require('./fetch_inventory');
 const { processConcurrentBatch } = require('./concurrent_processor');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -56,7 +58,6 @@ app.post('/api/all-meter-list', async (req, res) => {
 });
 
 // 5. Ultra Fast Endpoint (New) - No Verification, Parallel Upload
-
 app.post('/api/fast-post', async (req, res) => {
     try {
         const result = await processConcurrentBatch(req.body.userid, req.body.password, req.body.meters);
@@ -64,5 +65,4 @@ app.post('/api/fast-post', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => console.log("mtroom API v2.0 (Ultra Fast) Running on Port 3000"));
+app.listen(PORT, () => console.log("mtroom API v2.0 (Ultra Fast) Running on Port " + PORT));
